@@ -5,7 +5,7 @@ import bcrypt
 
 app = Flask(__name__)
 CORS(app)
-
+#CORS(app, supports_credentials=True)
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -142,63 +142,60 @@ def get_products():
 @app.route("/products", methods=["POST"])
 def add_product():
     data = request.get_json()
+    print(f"Received product data: {data}")  # Added logging for debugging
     name = data["name"]
     description = data.get("description", "")
     price = data["price"]
     stock = data["stock"]
     image = data.get("image", "")
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO products (name, description, price, stock, image) VALUES (%s, %s, %s, %s, %s)",
-        (name, description, price, stock, image)
-    )
-    conn.commit()
-    cursor.close()
-    conn.close()
+    with get_db_connection() as conn:
+         cursor = conn.cursor()
+         cursor.execute(
+             "INSERT INTO products (name, description, price, stock, image) VALUES (%s, %s, %s, %s, %s)",
+             (name, description, price, stock, image)
+         )
+         conn.commit()
+         cursor.close()
+    #conn.close()
     return jsonify({"message": "Product added successfully"}), 201
 
 @app.route("/products/<int:product_id>", methods=["DELETE"])
 def delete_product(product_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM products WHERE id = %s", (product_id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
-    return jsonify({"message": "Product deleted successfully"})
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM products WHERE id = %s", (product_id,))
+        conn.commit()
+        cursor.close()
+    #conn.close()
+        return jsonify({"message": "Product deleted successfully"})
 
 @app.route("/users", methods=["GET"])
 def get_users():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, username, email FROM users")
-    users = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return jsonify(users)
+    with get_db_connection() as conn:
+         cursor = conn.cursor(dictionary=True)
+         cursor.execute("SELECT id, username, email FROM users")
+         users = cursor.fetchall()
+         cursor.close()
+         return jsonify(users)
 
 @app.route("/products/<int:product_id>/stock", methods=["PUT"])
 def update_product_stock(product_id):
     data = request.get_json()
     change = data.get('change', 0)
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    try:
-        cursor.execute(
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
             "UPDATE products SET stock = stock + %s WHERE id = %s",
             (change, product_id)
-        )
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return jsonify({"message": "Stock updated successfully"}), 200
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        return jsonify({"error": str(e)}), 500
+            )
+            conn.commit()
+            cursor.close()
+            return jsonify({"message": "Stock updated successfully"}), 200
+        except Exception as e:
+            cursor.close()
+            return jsonify({"error": str(e)}), 500
 
 @app.route("/orders/<int:order_id>", methods=["DELETE"])
 def delete_order(order_id):
