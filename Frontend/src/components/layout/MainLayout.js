@@ -21,7 +21,7 @@ const MainLayout = ({ children, username, role, activeMenu, setActiveMenu }) => 
       display: 'flex',
       flexDirection: 'column'
     }}>
-      <Header username={username} />
+      <Header username={username} setSidebarOpen={setSidebarOpen} />
       <div style={{
         display: 'flex',
         flex: 1,

@@ -7,6 +7,51 @@ app = Flask(__name__)
 CORS(app)
 #CORS(app, supports_credentials=True)
 
+@app.route("/register", methods=["POST"])
+def register():
+    try:
+        data = request.get_json()
+        name = data.get('name')
+        phone = data.get('phone')
+        email = data.get('email')
+        password = data.get('password')
+        role = data.get('role', 'user')  # Default to 'user' if not provided
+
+        # Hash the password
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if email already exists in either table
+            cursor.execute("SELECT COUNT(*) as count FROM admin WHERE email = %s", (email,))
+            admin_count = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) as count FROM users WHERE email = %s", (email,))
+            user_count = cursor.fetchone()[0]
+            
+            if admin_count > 0 or user_count > 0:
+                return jsonify({"message": "Email already exists"}), 409
+
+            # Insert new user into the appropriate table based on role
+            if role == 'admin':
+                cursor.execute(
+                    "INSERT INTO admin (username, email, password) VALUES (%s, %s, %s)",
+                    (name, email, hashed_password.decode('utf-8'))
+                )
+            else:  # Default to user
+                cursor.execute(
+                    "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)",
+                    (name, email, hashed_password.decode('utf-8'))
+                )
+            conn.commit()
+            
+            return jsonify({"message": f"Registration successful as {role}"}), 201
+
+    except Exception as e:
+        print(f"Registration error: {str(e)}")
+        return jsonify({"message": "Registration failed"}), 500
+
 @app.route("/login", methods=["POST"])
 def login():
     try:
@@ -213,6 +258,252 @@ def delete_order(order_id):
         print(f"Error deleting order: {str(e)}")
         traceback.print_exc()
         return jsonify({"message": f"Failed to delete order: {str(e)}"}), 500
+
+@app.route("/update_profile", methods=["PUT"])
+def update_profile():
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        role = data.get('role')
+        name = data.get('name')
+        email = data.get('email')
+        phone = data.get('phone')
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Update the appropriate table based on role
+            if role == 'admin':
+                cursor.execute(
+                    "UPDATE admin SET username = %s, email = %s, phone = %s WHERE id = %s",
+                    (name, email, phone, user_id)
+                )
+            else:  # user
+                cursor.execute(
+                    "UPDATE users SET username = %s, email = %s, phone = %s WHERE id = %s",
+                    (name, email, phone, user_id)
+                )
+            conn.commit()
+            
+            return jsonify({"message": "Profile updated successfully"}), 200
+
+    except Exception as e:
+        print(f"Profile update error: {str(e)}")
+        return jsonify({"message": "Profile update failed"}), 500
+
+@app.route("/change_password", methods=["PUT"])
+def change_password():
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        role = data.get('role')
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Get current password from the appropriate table based on role
+            if role == 'admin':
+                cursor.execute("SELECT password FROM admin WHERE id = %s", (user_id,))
+            else:  # user
+                cursor.execute("SELECT password FROM users WHERE id = %s", (user_id,))
+                
+            user = cursor.fetchone()
+            
+            if not user or not bcrypt.checkpw(current_password.encode('utf-8'), user['password'].encode('utf-8')):
+                return jsonify({"message": "Current password is incorrect"}), 401
+
+            # Hash the new password
+            hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())
+
+            # Update the password in the appropriate table based on role
+            if role == 'admin':
+                cursor.execute(
+                    "UPDATE admin SET password = %s WHERE id = %s",
+                    (hashed_password.decode('utf-8'), user_id)
+                )
+            else:  # user
+                cursor.execute(
+                    "UPDATE users SET password = %s WHERE id = %s",
+                    (hashed_password.decode('utf-8'), user_id)
+                )
+            conn.commit()
+            
+            return jsonify({"message": "Password changed successfully"}), 200
+
+    except Exception as e:
+        print(f"Password change error: {str(e)}")
+        return jsonify({"message": "Password change failed"}), 500
+
+@app.route("/analytics/most-sold", methods=["GET"])
+def get_most_sold_products():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT p.id, p.name, SUM(oi.quantity) as total_sold
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                GROUP BY p.id, p.name
+                ORDER BY total_sold DESC
+                LIMIT 5
+            """)
+            results = cursor.fetchall()
+            return jsonify(results)
+    except Exception as e:
+        print(f"Error fetching most sold products: {str(e)}")
+        return jsonify({"message": "Failed to fetch most sold products"}), 500
+
+@app.route("/analytics/least-sold", methods=["GET"])
+def get_least_sold_products():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT p.id, p.name, SUM(oi.quantity) as total_sold
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                GROUP BY p.id, p.name
+                ORDER BY total_sold ASC
+                LIMIT 5
+            """)
+            results = cursor.fetchall()
+            return jsonify(results)
+    except Exception as e:
+        print(f"Error fetching least sold products: {str(e)}")
+        return jsonify({"message": "Failed to fetch least sold products"}), 500
+
+@app.route("/analytics/product-sales", methods=["GET"])
+def get_product_sales():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT p.id, p.name, SUM(oi.quantity * oi.price) as total_sales
+                FROM order_items oi
+                JOIN products p ON oi.product_id = p.id
+                GROUP BY p.id, p.name
+                ORDER BY total_sales DESC
+            """)
+            results = cursor.fetchall()
+            return jsonify(results)
+    except Exception as e:
+        print(f"Error fetching product sales: {str(e)}")
+        return jsonify({"message": "Failed to fetch product sales"}), 500
+
+@app.route("/analytics/overview", methods=["GET"])
+def get_analytics_overview():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            
+            # Get total sales by summing the product of quantity and price from order_items
+            cursor.execute("""
+                SELECT SUM(oi.quantity * oi.price) as total_sales 
+                FROM order_items oi
+                JOIN orders o ON oi.order_id = o.id
+            """)
+            total_sales_result = cursor.fetchone()
+            total_sales = total_sales_result['total_sales'] if total_sales_result['total_sales'] is not None else 0
+            
+            # Get total products sold
+            cursor.execute("SELECT SUM(quantity) as total_products_sold FROM order_items")
+            total_products_sold_result = cursor.fetchone()
+            total_products_sold = total_products_sold_result['total_products_sold'] if total_products_sold_result['total_products_sold'] is not None else 0
+            
+            # Get low stock count (products with stock < 5)
+            cursor.execute("SELECT COUNT(*) as low_stock_count FROM products WHERE stock < 5")
+            low_stock_count = cursor.fetchone()['low_stock_count']
+            
+            return jsonify({
+                "totalSales": float(total_sales),
+                "totalProductsSold": int(total_products_sold),
+                "lowStockCount": int(low_stock_count)
+            })
+    except Exception as e:
+        print(f"Error fetching analytics overview: {str(e)}")
+        return jsonify({"message": "Failed to fetch analytics overview"}), 500
+
+@app.route("/analytics/top-buyers", methods=["GET"])
+def get_top_buyers():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT u.id, u.username, SUM(oi.quantity) as total_products_bought
+                FROM users u
+                JOIN orders o ON u.id = o.user_id
+                JOIN order_items oi ON o.id = oi.order_id
+                GROUP BY u.id, u.username
+                ORDER BY total_products_bought DESC
+                LIMIT 5
+            """)
+            results = cursor.fetchall()
+            return jsonify(results)
+    except Exception as e:
+        print(f"Error fetching top buyers: {str(e)}")
+        return jsonify({"message": "Failed to fetch top buyers"}), 500
+
+@app.route("/analytics/user-leaderboard", methods=["GET"])
+def get_user_leaderboard():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT 
+                    u.id,
+                    u.username,
+                    u.email,
+                    COUNT(DISTINCT o.id) as total_orders,
+                    SUM(oi.quantity) as total_products_bought,
+                    SUM(oi.quantity * oi.price) as total_amount_spent,
+                    AVG(oi.quantity * oi.price) as avg_order_value,
+                    MAX(o.order_date) as last_purchase_date,
+                    DATEDIFF(CURDATE(), MAX(o.order_date)) as days_since_last_purchase
+                FROM users u
+                LEFT JOIN orders o ON u.id = o.user_id
+                LEFT JOIN order_items oi ON o.id = oi.order_id
+                GROUP BY u.id, u.username, u.email
+                ORDER BY total_amount_spent DESC
+            """)
+            results = cursor.fetchall()
+            
+            # Calculate activity score and format data
+            leaderboard_data = []
+            for user in results:
+                # Calculate activity score (weighted combination of metrics)
+                orders = user['total_orders'] or 0
+                amount = float(user['total_amount_spent'] or 0)
+                products = user['total_products_bought'] or 0
+                days_since = user['days_since_last_purchase'] or 999
+                
+                # Activity score formula
+                activity_score = (
+                    (orders * 10) + 
+                    (amount * 0.1) + 
+                    (products * 5) - 
+                    (days_since * 2)
+                )
+                
+                leaderboard_data.append({
+                    'id': user['id'],
+                    'username': user['username'],
+                    'email': user['email'],
+                    'totalOrders': orders,
+                    'totalProducts': products,
+                    'totalSpent': round(amount, 2),
+                    'avgOrderValue': round(float(user['avg_order_value'] or 0), 2),
+                    'lastPurchaseDate': user['last_purchase_date'].strftime('%Y-%m-%d') if user['last_purchase_date'] else None,
+                    'daysSinceLastPurchase': days_since,
+                    'activityScore': round(activity_score, 2),
+                    'rank': 0  # Will be calculated in frontend
+                })
+            
+            return jsonify(leaderboard_data)
+    except Exception as e:
+        print(f"Error fetching user leaderboard: {str(e)}")
+        return jsonify({"message": "Failed to fetch user leaderboard"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True)

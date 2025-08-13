@@ -11,6 +11,8 @@ import ManageProducts from './components/admin/ManageProducts';
 import StockOverview from './components/admin/StockOverview';
 import ProductAnalysis from './components/admin/ProductAnalysis';
 import UserManagement from './components/admin/UserManagement';
+import AdminSettings from './components/admin/Settings';
+import UserSettings from './components/user/Settings';
 
 const Home = () => {
   const navigate = useNavigate();
@@ -285,6 +287,14 @@ const Home = () => {
         )}
         {activeMenu === 'users' && (
           <UserManagement users={users} />
+        )}
+        
+        {activeMenu === 'settings' && user?.role === 'admin' && (
+          <AdminSettings />
+        )}
+        
+        {activeMenu === 'settings' && user?.role === 'user' && (
+          <UserSettings />
         )}
       </div>
     </MainLayout>

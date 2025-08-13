@@ -88,14 +88,14 @@ const Cart = ({ cart, cartQuantities, handleQuantityChange, removeFromCart, addr
                 <td style={{ borderBottom: '1px solid #ddd', padding: '8px' }}>{item.name}</td>
                 <td style={{ borderBottom: '1px solid #ddd', textAlign: 'center', padding: '8px' }}>{cartQuantities[item.id]}</td>
                 <td style={{ borderBottom: '1px solid #ddd', textAlign: 'right', padding: '8px' }}>${item.price}</td>
-                <td style={{ borderBottom: '1px solid #ddd', textAlign: 'right', padding: '8px' }}>${(item.price * cartQuantities[item.id]).toFixed(2)}</td>
+                <td style={{ borderBottom: '1px solid #ddd', textAlign: 'right', padding: '8px' }}>${((item.price || 0) * (cartQuantities[item.id] || 0)).toFixed(2)}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <div style={{ marginBottom: '1rem' }}>
           <strong>Total Items:</strong> {cart.length}<br />
-          <strong>Total Amount:</strong> ${total.toFixed(2)}
+          <strong>Total Amount:</strong> ${(total || 0).toFixed(2)}
         </div>
         <div style={{ marginBottom: '1rem' }}>
           <label>Delivery Address:</label>

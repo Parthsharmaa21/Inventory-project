@@ -58,7 +58,7 @@ const ProductCard = ({ product, cartQuantity = 0, onQuantityChange, onAddToCart,
               transition: 'all 0.2s ease'
             }}
           >
-            Add to Cart
+            Add to Cart 
           </button>
         ) : (
           <div style={{ 

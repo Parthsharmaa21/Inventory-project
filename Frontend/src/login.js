@@ -171,7 +171,7 @@ const Login = () => {
           color: '#718096',
           fontSize: '0.875rem'
         }}>
-          Need an account? <span style={{ color: '#4299E1', cursor: 'pointer', fontWeight: '500' }}>Contact admin</span>
+          Need an account? <span style={{ color: '#4299E1', cursor: 'pointer', fontWeight: '500' }} onClick={() => navigate('/register')}>Register here</span>
         </div>
       </form>
     </div>

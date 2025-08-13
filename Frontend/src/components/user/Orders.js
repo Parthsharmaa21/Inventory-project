@@ -56,7 +56,7 @@ const Orders = ({ orders, onDeleteOrder }) => {
                 padding: '0.5rem 0'
               }}>
                 <span>{item.name} x {item.quantity}</span>
-                <span>${(item.price * item.quantity).toFixed(2)}</span>
+                <span>${((item.price || 0) * (item.quantity || 0)).toFixed(2)}</span>
               </div>
             ))}
           </div>
@@ -68,7 +68,7 @@ const Orders = ({ orders, onDeleteOrder }) => {
             justifyContent: 'space-between'
           }}>
             <strong>Total:</strong>
-            <strong>${order.total.toFixed(2)}</strong>
+            <strong>${(order.total || 0).toFixed(2)}</strong>
           </div>
           <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#666' }}>
             Delivery Address: {order.address}
